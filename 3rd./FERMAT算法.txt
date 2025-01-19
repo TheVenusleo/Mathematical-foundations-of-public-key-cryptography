@@ -1,0 +1,23 @@
+def jian_ce(m):
+    if int(m) <= 1:
+        return False
+    if int(m) <= 3:
+        return True
+
+    # 随机选择 a
+    a = randint(2, int(m) - 1)
+
+    # 检查 gcd(a, m)
+    if gcd(a, int(m)) != 1:
+        return False
+
+    # 计算 a^(m-1) mod m
+    if pow(a, int(m) - 1, int(m)) != 1:
+        return False
+
+    return True
+
+# 输出结果
+m = input()
+result = jian_ce(int(m))
+print("m 是否为素数:", result)
