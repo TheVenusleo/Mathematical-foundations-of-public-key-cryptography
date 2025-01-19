@@ -1,0 +1,509 @@
+\documentclass[UTF8]{ctexart}
+
+\usepackage{amsmath}
+\usepackage{cases}
+\usepackage{cite}
+\usepackage{graphicx}
+\usepackage[margin=1in]{geometry}
+\usepackage{fancyhdr}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{ctex}
+\usepackage{xcolor}
+\usepackage{fontspec}
+\usepackage{titling}
+\pagestyle{fancy}
+\fancyhf{}
+\geometry{a4paper}
+
+\lstset{ %代码块设置
+    language = C,
+    numbers=left,
+    keywordstyle=\color{blue!70},
+    commentstyle=\color{red!50!green!50!blue!50},
+    frame=shadowbox,
+    rulesepcolor=\color{red!20!green!20!blue!20},
+    basicstyle=\ttfamily,
+    showstringspaces=false
+}
+\lstset{language=C}
+
+\title{公钥密码学数学基础第六次实验报告}
+\author{周家熠、潘子豪、王煜涵、刘一童}
+\date{\today}
+\pagenumbering{arabic} %设置文章页码为阿拉伯数字
+
+\begin{document}
+\fancyhf{}
+\fancyhead[L]{ %页眉左侧logo
+    \begin{minipage}[c]{0.9\textwidth}
+        \includegraphics[height=10.5mm]{picture/logo1.jpg}
+    \end{minipage}
+}
+\fancyhead[C]{公钥密码学数学基础实验报告}
+\fancyfoot[C]{\thepage}
+
+\begin{titlingpage} %封面设置
+    \centering
+    \includegraphics[width=0.8\textwidth]{picture/logo2.jpg}
+
+    \vspace{1cm} % Adjust vertical space as needed
+
+    {\Huge \thetitle\par} % Title
+    \vspace{1cm}
+    {\Large \theauthor\par} % Author
+    \vfill
+    {\large \thedate\par} % Date
+\end{titlingpage}
+
+\newpage
+
+\tableofcontents  %自动根据下文创建目录
+
+
+\newpage
+\section{摘要}
+本次实验为公钥密码学数学基础实验第六次实验，由周家熠、潘子豪、王煜涵、刘一童小组完成。实验内容为对RSA公钥密码算法的一些列加解密实验；潘子豪负责RSA实现的NTL部分，王煜涵负责sagemath部分，周家熠负责连分数攻击部分，刘一童（学号：202300460117）负责完成实验报告的撰写。于11月23日完成实验，11月29日撰写完成实验报告。本实验报告借助于overleaf的在线LateX平台完成。
+
+
+
+
+
+\newpage
+\section{实验目的}
+\begin{itemize}
+    \item 理解并掌握RSA原理，编程实现RSA算法。
+    \item 理解RSA分析的常用方法没实现针对特殊类型的RSA参数的破解。
+
+
+\end{itemize}
+\section{实验原理——RSA算法}
+\subsection{RSA算法}
+
+RSA是著名的公钥密码算法，1977年由Rivest，Shamir和Adleman一起提出，在实际中有着广泛的应用。RSA算法的安全性依赖于大整数分解困难，这使得整数分解问题成为现代密码学非常关注的问题之一。RSA算法的保密强度随其秘钥的长度增加而增强。但是，秘钥越长，其加解密所耗用的时间也越长。因此要根据所保护的信息的敏感程度与攻击者破解所花费的代价值不值得以及系统所要求的反应时间来综合考虑，尤其对于商业信息领域更是如此。关于整数分解方法的综述可以参见[裴定一, 祝跃飞. 算法数论(第二版), 科学出版社, 2015]
+\subsection{RSA加密原理}
+
+\subsubsection{核心原理}
+
+a.大整数因子分解难题：将一个大整数分解为两个大素数的乘积计算上非常困难。
+
+b.模幂运算：通过取模运算可以有效的处理大数计算。
+\subsubsection{密钥生成}
+
+a.选择两个大素数$p$和$q$，并计算它们的乘积$n=p*q$。这里$n$是密钥长度。
+
+b.计算$\phi (n)=(p-1)(q-1)$，即$n$的欧拉函数。
+
+c.选择一个公钥指数$e$，使得$1<e<\phi (n)$，且$e$与$\phi (n)$互质。
+
+d.计算私钥指数$d$，使得$d*e\equiv 1\pmod{\phi (n)}$。
+
+e.公钥为$(e,n)$，私钥为$(d,n)$。
+\subsubsection{加密与解密}
+
+a.加密：给定明文$M$，密文$c$通过公式进行计算：
+$$
+C\equiv M^e\pmod{n}
+$$
+
+b.解密：使用私钥将密文$C$转换回明文$M$：
+$$
+M\equiv C^d \pmod{n}
+$$
+\subsubsection{数字签名}
+
+a.使用私钥$d$对数据的哈希值签名，生成签名值$S\equiv H(M)^d\pmod{n}$。
+
+b.验证时，使用公钥$e$解码签名值$S$并比对：
+$$
+H(M)\equiv S^e\pmod{n}
+$$
+\subsection{针对RSA的攻击}
+\subsubsection{因子分解攻击}
+
+针对大整数的分解有很多算法，性能上各有优异，有Fermat方法，Pollard $\rho $方法，试除法，以及椭圆曲线法，连分数法，二次筛法，数域分析法等等。，其中一些方法应用在RSA的攻击上也有奇效。
+\paragraph{试除法}逐一尝试较小的素数，检测是否为$n$的因子，显然该方法仅仅适用于$p$或$q$较小的RSA实现，相当的，只要选择较大的素数(通常至少1024位)即可防御此种攻击。
+\paragraph{费马因子分解法}基于$n=p*q$中$p,q$的相对接近性，尝试找到$n$表达为两个平方差的形式，显然的，将$p,q$换成差距较大时即可迎刃而解。
+\paragraph{二次筛法}这是一种改进的筛法，通过寻找关系式$x^2\equiv y^2\pmod{n}$来分解$n$。但是基于现代的RSA算法来说，计算模数较长的数时其时间复杂度与空间复杂度依然很高，使用大模数即可进行防御。
+\paragraph{广义数域筛法}这是目前针对大整数因子分解的最有效的算法，计算复杂度为次指数级$exp[c(\log n)^{\frac{1}{3}}(\log\log n)^{\frac{2}{3}}]$。但是当模数位数增加到2048位以上时由于其高额的空间复杂度导致许多计算机无法承担如此庞大的算量，需要数年甚至更长的时间。
+\paragraph{椭圆曲线法}在有限域$\zeta_{n}$上的定义为：
+$$
+E:y^2\equiv x^3+ax+b\pmod{n}
+$$
+满足：判别式$\Delta=4a^3+27b^2\neq 0\pmod{n}$确保曲线是非奇异的。曲线上的点构成一个加法群，点的加法定义于几何操作。
+
+因子分解流程：输入一个待分解的整数$n$，曲线参数$a,b$及初始点$P=(x_{1},y_{1})$，阶段上线$B_{1},B_{2}$(控制计算的复杂度)。
+
+a.选定椭圆曲线和初始点：随机选择$a,b$和点$P$满足$y^2\equiv x^3+ax+b\pmod{n}$。
+
+b.计算倍点：通过对点$P$进行倍点计算，类似于Pollard $p-1$的算法，寻找因子$p$：
+$$
+Q=kP=P+P+P+...+P(k次)
+$$
+计算中涉及除法$\frac{x_{2}-x_{1}}{y_{2}-y_{1}} \pmod{n}$。若$gcd(y_{2}-y_{1},n)$找到非平凡因子，则结束
+
+c.检查因子：若过程中某一步发现$gcd(y_{2}-y_{1},n)\neq 1$且$gcd(y_{2}-y_{1},n)\neq n$，则此值为$n$的非平凡因子。
+
+d.调整参数重试
+\paragraph{连分数法}连分数法基于如下的数学原理：给定一个实数$\sqrt{N}$，可以通过连分数展开来逼近这个实数的有理近似值。通过这些近似数我们可以得到潜在的因数$p,q$，从而分解$N=pq$。
+
+在RSA中，若$N=pq$，并且我们知道$N$的某个近似平方根$\sqrt{N}$，连分数展开能够帮助我们从这个近似值中提取出$N$的因子。但是连分数方法只能攻击小解密指数的RSA，即当$N<\frac{1}{3}N^{\frac{1}{4}}$时可以分解RSA模$N$。
+
+下面介绍其分析方法，首先假设RSA模$N$的两个大素数因子$p,q$的二进制长度相等即
+$$
+p<q<2p
+$$
+可以得到：
+$$
+p+q<3\sqrt{N}
+$$
+并且，$N$的欧拉函数满足：
+$$
+N-3\sqrt{N}<\phi (N)<N
+$$
+由RSA公钥密码算法的密钥生成知：
+$$
+ed=1+k\phi (N)
+$$
+$$
+\lvert \frac{e}{N}-\frac{k}{d} \rvert =\lvert \frac{ed-kN}{Nd} \rvert =\lvert \frac{k(p+q-1)-1}{Nd} \rvert
+$$
+由于$0<k<d,p+q<3\sqrt{N}$，所以：
+$$
+\lvert \frac{e}{N}-\frac{k}{d} \rvert <\frac{3}{\sqrt{N}}
+$$
+如果 $d<\frac{1}{3}N^{\frac{1}{4}}$，那么：
+$$
+\lvert \frac{e}{N}-\frac{k}{d} \rvert <\frac{1}{2d^2}
+$$
+根据课本定理6.13知，$\frac{k}{d}$是有理数$\frac{e}{N}$的一个渐进分数。
+
+因此，当$d<\frac{1}{3}N^{\frac{1}{4}}$，可以得到一个有效的算法分解RSA模$N$。利用欧几里得算法计算$\frac{e}{N}$的渐进分数$\frac{k_{i}}{d_{i}}$，对于每一个$i$，计算$T_{i}=N-\frac{ed_{i}-1}{k_{i}}+1$，判断方程$x^2-T_{i}x+N=0$是否有正整数解$p,q>1$若不能，计算下一个渐进分数，直至分解$N$。
+\subsubsection{选择密文攻击}
+
+通过选择对攻击有利的特定密文及其对应的明文，求解密钥或从截获的密文求解相应的明文的密码分析方法。RSA在选择密文攻击面前显得很脆弱。从算法上无法解决这一问题，改进措施有两条：一是采用良好的公钥协议保证工作过程中实体不对其他实体任意产生的信息解密，不对自己一无所知的信息签名；二是绝不对陌生人送来的随机文档签名，或签名时首先对文档进行Hash处理，或同时使用不同的签名算法。
+\subsubsection{小指数攻击}
+
+当公钥$e$取较小的值时，可以使得加密和验证签名的速度有所提高，但是如果$e$的取值太小，就容易收到攻击。可以直接通过明文的$e$次幂求解，最好的防御是选取较大的公钥指数，或者对明文进行垃圾填充，避免直接加密数据。
+
+RSA的加密公式为：$C\equiv M^e\pmod{n}$。如果$M^e<n$，那么$C=M^e$。攻击者直接对$C$求$e$次方根即可恢复明文$M$。现代计算机可以通过牛顿迭代法或者专门的整数开方算法快速求解。
+\subsubsection{共模攻击}
+
+如果两个用户使用的相同的模数$n$且不同的公钥指数$e_{1},e_{2}$可以通过求解模方程来还原明文。如果攻击者获得了以下信息：公钥$(e_{1},n),(e_{2},n)$，以及通过$A,B$加密的相同明文$M$对应的密文：
+$$
+C_{1}\equiv M^{e_{1}}\pmod{n}
+$$
+$$
+C_{1}\equiv M^{e_{2}}\pmod{n}
+$$
+攻击者可以利用$C_{1},C_{2}$通过以下步骤恢复明文$M$：
+\paragraph{建立同余方程}
+$$
+ \left\{\begin{align}
+C_{1}\equiv M^{e_{1}}\pmod{n}\\C_{2}\equiv M^{e_{2}}\pmod{n}
+\end{align}\right.
+$$
+\paragraph{扩展欧几里得算法}找到两个整数$a,b$，满足：
+$$
+a*e_{1}+b*e_{2}=1
+$$
+\paragraph{将$M$表达为：}
+$$
+M\equiv C^{a}_{1}C^{b}_{2}\pmod{n}
+$$
+如果$a$为负数，则计算$C^{-a}_{1}$的模逆
+\paragraph{得到明文}$M$
+\subsubsection{低加密指数广播攻击}
+
+如果选取的加密指数$e$比较低，并且使用了相同的加密指数对相同的明文$M$进行加密，并进行了消息的传递，那么可以进行广播攻击得到明文。
+\section{实验内容}
+\subsection{RSA实现}
+\subsubsection{\textbf{NTL实现}}
+
+\textbf{实验代码}
+
+\begin{lstlisting}
+#include<iostream>
+#include<NTL/ZZ.h>
+#include<chrono>
+using namespace std;
+using namespace NTL;
+using namespace std::chrono;
+ZZ RSA_encryption(ZZ N, ZZ e, ZZ m)
+{
+	auto start = high_resolution_clock::now();
+	ZZ C = PowerMod(m, e, N);
+	auto end = high_resolution_clock::now();
+	auto duration = duration_cast<microseconds>(end - start);
+	double duration_time = duration.count() / 1000000.0;
+	cout << "加密所用时间:" << duration_time << "s" << endl;
+	return C;
+}
+ZZ RSA_decryption(ZZ N, ZZ d, ZZ C)
+{
+	auto start = high_resolution_clock::now();
+	ZZ m = PowerMod(C, d, N);
+	auto end = high_resolution_clock::now();
+	auto duration = duration_cast<microseconds>(end - start);
+	double duration_time = duration.count() / 1000000.0;
+	cout << "解密所用时间:" << duration_time << "s" << endl;
+	return m;
+}
+ZZ CRT_encryption(ZZ N, ZZ e, ZZ p, ZZ q, ZZ m)
+{
+	auto start = high_resolution_clock::now();
+	ZZ a = PowerMod(m % p, e % (p - 1), p);
+	ZZ A = PowerMod(m % q, e % (q - 1), q);
+	CRT(a, p, A, q);
+	ZZ C = a % N;
+	auto end = high_resolution_clock::now();
+	auto duration = duration_cast<microseconds>(end - start);
+	double duration_time = duration.count() / 1000000.0;
+	cout<<"使用中国剩余定理加密所用时间:"<<duration_time<<"s"<<endl;
+	return C;
+}
+ZZ CRT_decryption(ZZ N, ZZ d, ZZ p, ZZ q, ZZ C)
+{
+	auto start = high_resolution_clock::now();
+	ZZ a = PowerMod(C % p, d % (p - 1), p);
+	ZZ A = PowerMod(C % q, d % (q - 1), q);
+	CRT(a, p, A, q);
+	ZZ m = a % N;
+	auto end = high_resolution_clock::now();
+	auto duration = duration_cast<microseconds>(end - start);
+	double duration_time = duration.count() / 1000000.0;
+	cout<<"使用中国剩余定理解密所用时间:"<<duration_time<<"s“<<endl;
+	return m;
+}
+int main()
+{
+	ZZ p = GenPrime_ZZ(1024);
+	ZZ q = GenPrime_ZZ(1024);
+	ZZ N = p * q;
+	ZZ phi_N = (p - 1) * (q - 1);
+	ZZ e = RandomBnd(phi_N - 2) + 2;
+	while (GCD(e, phi_N) > 1)
+	{
+		e = RandomBnd(phi_N - 2) + 2;
+	}
+	ZZ d = InvMod(e, phi_N);
+	ZZ m = RandomBnd(N);
+	ZZ C = RSA_encryption(N, e, m);
+	RSA_decryption(N, d, C);
+	CRT_encryption(N, e, p, q, m);
+	CRT_decryption(N, d, p, q, C);
+	return 0;
+}
+\end{lstlisting}
+\textbf{实验结果}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\linewidth]{Collage_20241129_082024.jpg}
+    \caption{实验结果}
+    \label{fig:enter-label}
+\end{figure}
+\newpage
+\subsubsection{sagemath实现}
+
+\textbf{实验代码}
+\begin{lstlisting}
+#!/usr/bin/env python
+# coding: utf-8
+# In[1]:
+#编写一般RSA算法
+def RSA(p,q,n,phi_n,e,d,m):
+    t_1 = time.time()
+    #加密
+    c = power_mod(m, e, n)
+    print("c = ",c)
+    
+    #解密
+    M = power_mod(int(c),int(d),int(n))
+    
+    #验证
+    if(int(M) == int(m)):
+        print("RSA算法成功实现")
+    else:
+        print("RSA算法出错")
+    t_2 = time.time()
+    
+    #计算时间
+    time_1 = t_2 - t_1
+    return time_1
+# In[2]:
+#编写CRT算法
+def CRT(p,q,n,e,d,m):
+    t_3 = time.time()
+    #加密
+    c = power_mod(m, e, n)
+    print("c = ",c)
+    
+    #解密
+    d_p = d % (p - 1)
+    d_q = d % (q - 1)
+
+    q_inv = pow(q,-1,p)#q在模p下的逆元
+
+    m_p = power_mod(c,int(d_p),p)
+    m_q = power_mod(c,int(d_q),q)#对p,q分别解密
+    M = (int(m_q) + int(q) * int(((m_p - m_q) * q_inv % p)) % n)
+
+    #验证
+    if(int(M) == int(m)):
+        print("CRT算法成功实现")
+    else:
+        print("CRT算法出错")
+    t_4 = time.time()
+    
+    #计算时间
+    time_2 = t_4 - t_3
+    return time_2
+# In[3]:
+import time
+#生成密钥
+p = random_prime(2^1024, lbound=2^(1024-1))
+q = random_prime(2^1024, lbound=2^(1024-1))
+n = p * q
+phi_n = (p - 1) * (q - 1)
+e = 65537
+d = pow(e,-1,phi_n)
+m = randint(1,10**23)
+print("m = ",m)
+# In[4]:
+#调用函数，计算时间差
+time_1 = RSA(p,q,n,phi_n,e,d,m)
+print("RSA算法所用时间为：",time_1)
+time_2 = CRT(p,q,n,e,d,m)
+print("CRT算法所用时间为：",time_2)
+
+if(time_1 > time_2):
+print("CRT算法所需时间更短，两种算法所需时间的差值为",(time_1-time_2))
+else:
+    print("?")
+
+
+\end{lstlisting}
+\newpage
+\textbf{实验结果}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\linewidth]{234263b1eee16e1a992179145090cf43_720.png}
+    \caption{sagemath实验结果}
+    \label{fig:enter-label}
+\end{figure}
+\newpage
+\subsection{连分数攻击}
+\subsubsection{算法具体实现}
+
+函数接收的参数：公钥$N,e$，密文$C$；
+
+首先定义两个长度均为3的数组，分别存放分子和分母，由于第$k$个渐进分数仅取决于第$k-1$和$k-2$个渐进分数以及$a_{k}$，故长度为3即足够，不需要保存太多信息；
+
+初始化：由于前两个渐进分数都是已知的(0和[$\frac{N}{e}$])。因此只需从第三个开始求。初始化数组时，为了配合后续循环中数组元素的移动。将前两个渐进分数初始化到数组的后两个位置（即[1][2]位）；初始化两个数$x,y$，初始值分别为$N,e$，用于做Eculid算法，并且保证$x>y$；
+
+进入循环：首先$x$对$y$做带余除法，随后交换$x,y$，保证$x>y$，将$[\frac{x}{y}]$赋值给$a$(这里的$a$即为$a_{k}$由于不需要保存每一个$a_{k}$，这里用后即弃);随后将数组中的元素左移，腾出空间[2]存储计算出的渐进分数的分子$p_{k}$和分母$q_{k}$($p_{k}$即为代码中的'p array[2]',$q_{k}$为'q array[2]')；解方程$x^2-tx+N=0$，若有正整数解$p,q>1$，则$p,q$即为$N$的因子，否则循环继续；
+
+验证$p*q$是否等于$N$，若不是，返回失败，若是，则使用中国剩余定理解出明文$m$，返回$m$。
+
+\textbf{注：该算法必须在$d$满足$1<d<\frac{1}{3}N^{\frac{1}{4}}$的条件下才有效}
+\subsubsection{实验代码}
+\begin{lstlisting}
+#include<iostream>
+#include<NTL/ZZ.h>
+using namespace std;
+using namespace NTL;
+ZZ continued_fraction_attack(ZZ N, ZZ e, ZZ C)
+{
+	ZZ t;
+	ZZ delta;
+	ZZ x = N;
+	ZZ y = e;
+	ZZ a;
+	ZZ p_array[3] = { ZZ(0), ZZ(0), ZZ(1) };
+	ZZ q_array[3] = { ZZ(0), ZZ(1), N / e };
+	while (true)
+	{
+		x -= x / y * y;
+		swap(x, y);
+		a = x / y;//Euclid算法
+		p_array[0] = p_array[1];
+		p_array[1] = p_array[2];
+		q_array[0] = q_array[1];
+		q_array[1] = q_array[2];
+		p_array[2] = a * p_array[1] + p_array[0];
+		q_array[2] = a * q_array[1] + q_array[0];
+		if ((e * q_array[2] - 1) % p_array[2] != 0)continue;
+		t = N - (e * q_array[2] - 1) / p_array[2] + 1;
+		delta = t * t - 4 * N;
+		if (delta < 0)continue;
+		if (sqr(SqrRoot(delta)) != delta)continue;
+		if ((t - SqrRoot(delta)) % 2 != 0)continue;
+		break;
+	}
+	ZZ p = (t + SqrRoot(delta)) / 2;
+	ZZ q = (t - SqrRoot(delta)) / 2;
+	if (p * q != N){
+		cout << "failed" << endl;
+		return ZZ(0);
+	}
+	ZZ phi_N = (p - 1) * (q - 1);
+	ZZ d = InvMod(e, phi_N);
+	ZZ r = PowerMod(C % p, d % (p - 1), p);
+	ZZ R = PowerMod(C % q, d % (q - 1), q);
+	CRT(r, p, R, q);//使用中国剩余定理解密
+	ZZ m = r % N;
+	cout << "破解出的明文m=" << m << endl;
+	return m;
+}
+int main()
+{
+	ZZ p = GenPrime_ZZ(1024);
+	ZZ q = GenPrime_ZZ(1024);
+	ZZ N = p * q;
+	ZZ phi_N = (p - 1) * (q - 1);
+	ZZ upper_bound = SqrRoot(SqrRoot(N)) / 3;
+	ZZ d = RandomBnd(upper_bound - 2) + 2;
+    //d要满足1<d<(1/3)N^(1/4)才可进行连分数攻击
+	while (GCD(d, phi_N) > 1){
+		d = RandomBnd(upper_bound - 2) + 2;
+	}
+	ZZ e = InvMod(d, phi_N);
+	ZZ m = RandomBnd(N);
+	//cout << "p=" << p << endl;
+	//cout << "q=" << q << endl;
+	//cout << "N=" << N << endl;
+	//cout << "e=" << e << endl;
+	//cout << "d=" << d << endl;
+	cout << "生成出的明文m=" << m << endl;
+	ZZ a = PowerMod(m % p, e % (p - 1), p);
+	ZZ A = PowerMod(m % q, e % (q - 1), q);
+	CRT(a, p, A, q);//使用中国剩余定理加密
+	ZZ C = a % N;
+	if (continued_fraction_attack(N, e, C) == m){
+		cout << "攻击成功" << endl;
+	}
+	else{
+		cout << "攻击失败" << endl;
+	}
+	return 0;
+}
+\end{lstlisting}
+
+\newpage
+\subsubsection{实验结果(NTL)}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\linewidth]{Collage_20241129_084228.jpg}
+    \caption{实验结果}
+    \label{fig:enter-label}
+\end{figure}
+
+
+
+
+
+
+
+\end{document}
