@@ -1,0 +1,487 @@
+\documentclass[UTF8]{ctexart}
+
+\usepackage{amsmath}
+\usepackage{cases}
+\usepackage{cite}
+\usepackage{graphicx}
+\usepackage[margin=1in]{geometry}
+\usepackage{fancyhdr}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{ctex}
+\usepackage{xcolor}
+\usepackage{fontspec}
+\usepackage{titling}
+\pagestyle{fancy}
+\fancyhf{}
+\geometry{a4paper}
+
+\lstset{ %代码块设置
+    language = C,
+    numbers=left,
+    keywordstyle=\color{blue!70},
+    commentstyle=\color{red!50!green!50!blue!50},
+    frame=shadowbox,
+    rulesepcolor=\color{red!20!green!20!blue!20},
+    basicstyle=\ttfamily,
+    showstringspaces=false
+}
+\lstset{language=C}
+
+\title{公钥密码学数学基础第五次实验报告}
+\author{周家熠、潘子豪、王煜涵、刘一童}
+\date{\today}
+\pagenumbering{arabic} %设置文章页码为阿拉伯数字
+
+\begin{document}
+\fancyhf{}
+\fancyhead[L]{ %页眉左侧logo
+    \begin{minipage}[c]{0.9\textwidth}
+        \includegraphics[height=10.5mm]{picture/logo1.jpg}
+    \end{minipage}
+}
+\fancyhead[C]{公钥密码学数学基础实验报告}
+\fancyfoot[C]{\thepage}
+
+\begin{titlingpage} %封面设置
+    \centering
+    \includegraphics[width=0.8\textwidth]{picture/logo2.jpg}
+
+    \vspace{1cm} % Adjust vertical space as needed
+
+    {\Huge \thetitle\par} % Title
+    \vspace{1cm}
+    {\Large \theauthor\par} % Author
+    \vfill
+    {\large \thedate\par} % Date
+\end{titlingpage}
+
+\newpage
+
+\tableofcontents  %自动根据下文创建目录
+
+
+\newpage
+\section{摘要}
+本次实验为公钥密码学数学基础实验第五次实验，由周家熠、潘子豪、王煜涵、刘一童小组完成。实验内容为编程实现至少三种离散对数求解方法，分析各种方法的优缺点并对比同等规模的整数分解和离散对数问题求解所用的时间；其中潘子豪采用小步大步法；周家熠采用Pollard $\rho  ,\lambda$算法；王煜涵为Pohlig-Hellman算法；刘一童（学号：202300460117）负责完成实验报告的撰写。于11月17日完成实验，11月20日撰写实验报告。本实验报告借助于overleaf的在线LateX平台完成。
+
+\newpage
+\section{实验目的}
+\begin{itemize}
+    \item 理解并掌握离散对数求解的基本原理，掌握常用的离散对数求解方法，并且比较各方法的优缺点。
+    \item 编程实现至少 3 种离散对数的求解方法，分析各方法的优缺点。
+    \item 对比同等规模的整数分解和离散对数问题求解所用的时间。
+
+\end{itemize}
+\section{实验原理}
+
+Diffie-Hellman密钥交换协议是第一个公钥密码算法，1976年由Diffie和Hellman一起提出，在SSH，TLS等安全套件中有着广泛的应用。DH算法的安全性依赖于离散对数问题的困难性，这使得离散对数问题成为现代密码学非常关注的问题之一。关于离散对数问题求解的综述可以参考[裴定一, 祝跃飞. 算法数论(第二版), 科学出版社, 2002]。模素数$p$的离散对数问题为给定正素数$p$，元素$g$(通常为模$p$的原根)和目标元素$h$，求解$h$相对于$g$模$p$的离散对数。即求整数$a$，使得$g^a\equiv h\pmod{p}$。
+
+在这里我们会介绍几种常见的求解离散对数的方法以及基本原理，稍后我们会在实验内容中选取三个进行编程实现。
+\subsection{穷举法}
+
+穷举法是最初等的离散对数求解算法，该方法依次计算$g^a\equiv p$，并检验每个值是否等于$h$，穷举法的思想简单，但复杂度高。现给出一穷举法的合理但非完全可行性的python代码(面对较大的数不可行)
+\begin{lstlisting}
+def discrete_log(g, h, p):
+    for x in range(p):
+        if pow(g, x, p) == h:  # 计算 g^x mod p
+            return x
+    return None  # 无解
+
+# 测试
+g = 3
+h = 13
+p = 17
+result = discrete_log(g, h, p)
+if result is not None:
+    print(f"The discrete logarithm is x = {result}")
+else:
+    print("No solution found")
+\end{lstlisting}
+容易得到，穷举法的时间复杂度为$O(p)$因为其需要测试所有可能的$x$的值，并不是最优解法。
+\subsection{Pohlig-Hellman算法}
+
+Pohlig-Hellman算法利用孙子定理给出的已知$p-1$分解时的求解算法，假设$p-1=\prod_{i=1}^{n}l^{e_{i}}_{i}$。Pohlig-Hellman算法的主要思想是对$i$从1到$n$，计算
+$$
+a_{i}=k_{0}+k_{1}l_{1}+...+k_{e_{i}}l^{e_{i}-1}_{i}
+$$
+其中，$a_{i}\equiv a\pmod{l^{e_{i}}_{i}}$，再用孙子定理计算$a$。
+
+Pohlig-Hellman算法其实是将该问题分解成了许多子问题，先将待进行离散对数分解的$p$进行质因子分解，然后在子群模$q^{e_{i}}_{i}$内求解$x_{i}$，然后利用递归方法求解每一个$x$，最后使用孙子定理将所有的解组合为一个模$n$的解。所以，该方法的时间复杂度要分布求解，对于质因数分解来说为$O(\sqrt{n})$，但实际通常非常小，然后对于每一个子问题。其复杂度为$O(q^{e_{i}}_{i})$或更低，然后对其求和，有
+$$
+时间复杂度=O(\sum_{i=1}^{k} q^{e_{i}}_{i})
+$$
+由于$n$为因数分解的结果，当对于质因子$q_{i}$很小时该算法非常高效。
+\subsection{小步大步法(Baby-step Giant-step,BSGS)}
+
+Shanke利用了时间/空间权衡的思想，提出了BSGS法，将暴力枚举的复杂度从$O(p)$降低到$O(\sqrt{p})$，效率较穷举法有所改进，但占用内存较大。
+
+它适用于离散对数问题的一般情况：
+$$
+g^x\equiv h\pmod{p}
+$$
+其中$g$是群$G$的生成元，$h$是目标值，$p$是模数，求$x$.
+
+利用离散对数的性质，将$x$分为两部分：
+$$
+x=m*k+j,其中m=\left\lceil \sqrt{p}\right\rceil，
+$$
+于是：
+$$
+h\equiv g^x\pmod{p} \Longrightarrow h*g^{-j}\equiv g^{m*k}\pmod{p}
+$$
+这里$m$为步长的大小，算法分两步完成：
+
+a.小步阶段(Baby-step)：枚举所有可能的$g^j\pmod{p}$，存入一个哈希表，其中$j\in [0,m-1]$。
+
+b.大步阶段(Giant-step)：枚举$h*g^{-m*k}\pmod{p}$，其中$k\in [0,m-1]$，并在哈希表中查找匹配项。
+
+如果找到匹配项$g^j$，则有：
+$$
+x=m*k+j.
+$$
+相较于暴力穷举法来说，其时间复杂度为$O(\sqrt{p})$显著降低了计算时间，并且其通用性强，适用于任何离散对数问题。但其缺点也非常显著，其空间需求较高，对于$p$非常大(如256位素数)时可能难以实现。
+\subsection{Pollard $\rho,\lambda$算法}
+
+Pollard提出著名的 $\rho ,\lambda$(也称kangaroo)算法，基本思想是通过概率方法寻找整数对$x_{1},x_{2},y_{1},y_{2}$满足$g^{x_{1}}t^{x_{2}}\equiv g^{y_{1}}t^{y_{2}}\pmod{p}$，从而求解离散对数。两种算法都利用了伪随机游走。
+\subsection{指标求解算法}
+
+针对有限域(有限域即元素有限的集合,其中可以任意进行加减乘,以及分母非零的除运算)离散对数问题, 研究者设计了指标求解算法, 其中利用了分解基、光滑性的概念和线性代数求解方程. 一个分解基是不超过某个上界 B 的素数集合, 若一个正整数的素因子均在该分解基中, 则称为B-光滑的. 该算法依赖这样的命题: 
+
+如果$x^ay^bz^c=1$，那么$a\log_g x+b\log _g y+c\log _g z=\log_g 1=0$。因此，如果我们能找到$x_{i}$，且$L_{i}=log _g x_{i} $ ，$h=x^{a_{1}}_{1}...x^{a_{n}}_{n}$，那么有：
+$$
+\log _g h=a_{1}L_{1}+...+a_{n}L_{n}
+$$
+指标求解法的时间复杂度为$O(p)(预计算)+O(1)(查询)$。
+\subsection{数域筛法(Number Field Sieve, NFS)}
+
+数域筛法是基于指标求解算法框架设计的算法, 目前求模$p$离散对数渐近时间复杂度最低的经典计算算法。
+
+数域筛法的复杂度是已知离散对数和大整数分解算法中最低的一个，为亚指数级：
+$$
+L_{N}[\frac{1}{3},(\frac{64}{9})^{\frac{1}{3}}]，
+$$
+其中：
+$$
+L_{N}[s,c]=exp((c+o(1))*(\log N)^s*(\log \log N)^1-s)
+$$
+对于$N$的大小在100到200之间时，NFS通常优于其他算法，对于更小的规模的问题，NFS算法可能不如简单的试除法或分圆筛法。
+\subsection{Shor算法}
+
+Shor 算法, 是 Shor 提出的在量子计算机上面运作的算法, 也可高效地求解离散对数问题。
+\section{实验内容}
+\subsection{Pohlig-Hellman算法}
+
+\subsubsection{实验代码}
+\begin{lstlisting}
+#!/usr/bin/env python
+# coding: utf-8
+# In[4]:
+from sage.all import *
+import math
+# 计算素因数分解
+def fenjie(n):
+    #创建元组存储因子
+    fs = [] 
+    # 检查偶数因子
+    count = 0
+    while n % 2 == 0:
+        n //= 2
+        count += 1
+    if count > 0:
+        fs.append((2, count))   
+    # 检查奇数因子
+    f = 3 #从2之后的最小因子3开始
+    while f * f <= n:
+        count = 0
+        while n % f == 0:
+            n //= f
+            count += 1
+        if count > 0:
+            fs.append((f, count))
+        f += 2
+    if n > 1:
+        fs.append((n, 1))  
+    return fs
+# range(p)暴力搜索计算离散对数
+def find(g, h, p):
+    for x in range(p):
+        if pow(g, x, p) == h:  #g**x mod p == h
+            return x
+    return None
+# 实现Pohlig-Hellman算法
+def pohlig_hellman(g, h, p):
+    # 1. 获取群的阶p-1的素因数分解
+    fs = fenjie(p - 1)  
+    # 存储每个素因子阶的离散对数解
+    s = [] 
+    # 2. 处理每个素因子阶
+    for q, i in fs:
+        q_i = q ** i   
+        # 3. 计算当前素因子阶的问题：g**x ≡ h (mod p)，但是阶为q_i
+        # 通过暴力搜索计算离散对数
+        s_i = find(g, h, p)
+        if s_i is None:
+            raise ValueError(f"子问题无解，检查输入参数")
+        s.append(s_i)
+    # 4. 使用孙子定理合并解
+    x = crt(s, [q ** i for q, i in fs])
+    return x
+p = 17
+g = 3     
+h = 10  
+# Pohlig-Hellman算法
+result = pohlig_hellman(g, h, p)
+print("离散对数结果:", result)
+# In[ ]:
+\end{lstlisting}
+\subsubsection{实验结果(sagemath)}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\linewidth]{Collage_20241121_222656.jpg}
+    \caption{实验结果}
+    \label{fig:enter-label}
+\end{figure}
+
+
+\subsection{小步大步法(Baby-step Giant-step,BSGS) }
+
+\subsubsection{实验代码}
+\begin{lstlisting}
+#include <NTL/ZZ.h>
+#include <vector>
+#include <cmath>
+#include <iostream>
+
+using namespace NTL;
+using namespace std;
+
+ZZ BabyStepGiantStep(ZZ g, ZZ h, ZZ p) {
+    // 首先计算 m = ⌈√N⌉，其中 N 为模数 p 的阶
+    ZZ m = SqrRoot(p) + 1;
+
+    // 使用 vector 存储小步表
+    vector<pair<ZZ, ZZ>> baby_steps;
+
+    // 然后计算所有小步值：g^a0 (mod p)
+    ZZ cur = ZZ(1); // 初始值 g^0 = 1
+    for (ZZ a0 = ZZ(0); a0 < m; a0++) {
+        baby_steps.push_back(make_pair(cur, a0));  // 存储 (g^a0, a0)
+        cur = (cur * g) % p;  // 递推计算 g^(a0+1)
+    }
+
+    // 计算 g^(-m) (模逆元的 m 次幂)
+    ZZ g_m = PowerMod(g, -m, p);
+
+    // 进行大步搜索：h * (g^(-m))^a1 (mod p)
+    cur = h;  // 初始值为 h
+    for (ZZ a1 = ZZ(0); a1 < m; a1++) {
+        // 线性查找匹配的小步值
+        for (const auto& entry : baby_steps) {
+            if (entry.first == cur) {
+                // 找到匹配的小步值
+                ZZ a0 = entry.second;
+                return a0 + a1 * m;  // a = a0 + a1 * m
+            }
+        }
+        cur = (cur * g_m) % p;  // 更新为 h * (g^(-m))^(a1+1)
+    }
+
+    // 如果未找到解
+    return ZZ(-1);
+}
+
+int main() {
+   
+    ZZ g, h, p;
+    cout << "请输入模数 p: ";
+    cin >>p;
+    cout << "请输入基 g: ";
+    cin >> g;
+    cout << "请输入结果 h: ";
+    cin >> h;
+    ZZ result = BabyStepGiantStep(g, h, p);
+    if (result != -1) {
+        cout << "离散对数 a: " << result << endl;
+    }
+    else {
+        cout << "未找到解。" << endl;
+    }
+
+    return 0;
+}
+\end{lstlisting}
+
+\newpage
+\subsubsection{实验结果(NTL)}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\linewidth]{Collage_20241121_223248.jpg}
+    \caption{实验结果}
+    \label{fig:enter-label}
+\end{figure}
+
+
+
+
+\subsection{Pollard $\rho ,\lambda$算法}
+
+问题：给定$p,g,h$，求$\gamma$满足：
+$$
+g^{\gamma}\equiv h\pmod{p}
+$$
+算法思想：想办法找到整数$a,b,A,B$，使得
+$$
+g^ah^b\equiv g^Ah^B\pmod{p}
+$$
+整理得
+$$
+g^{a-A}\equiv h^{B-b}\pmod{p}
+$$
+由于
+$$
+g^{\gamma}\equiv h\pmod{p}
+$$
+得
+$$
+g^{a-A}\equiv g^{(B-b)\gamma}\pmod{p}
+$$
+即
+$$
+(B-b)\gamma \equiv a-A\pmod{p-1}
+$$
+利用Euclid算法可以轻易的算出$\gamma$。
+
+算法具体实现：
+
+设模$p$的一组既约剩余系为群$G$，对$G$进行划分：
+$$
+G=S_{0}\cup S_{1}\cup S_{2},S_{i}\cap S_{j}=\phi
+$$
+定义映射$f$：$G\to G$：
+$$
+f(x)\equiv \left\{\begin{align}
+gx\pmod{p},x\in S_{0}\\hx\pmod{p},x\in S_{1}\\x^2\pmod{p},x\in S_{2}
+\end{align}\right.
+$$
+定义映射$m$：$G*Z\to Z$：
+$$
+m(x,k)\equiv  \left\{\begin{align}
+k+1\pmod{p-1},x\in S_{0}\\k\pmod{p-1},x\in S_{1}\\2k\pmod{p-1},x\in S_{2}
+\end{align}\right.
+$$
+定义映射$n$：$G*Z\to Z$：
+$$
+n(x,k)\equiv  \left\{\begin{align}
+k\pmod{p-1},x\in S_{0}\\k+1\pmod{p-1},x\in S_{1}\\2k\pmod{p-1},x\in S_{2}
+\end{align}\right.
+$$
+初始化$a_{i},a_{j},b_{i},b_{j}=0;x_{i},x_{j}=1$；($i$和$j$是快慢指针，$i$每移动一步，$j$移动两步)
+
+执行下面的循环：
+\begin{lstlisting}
+Loop：
+
+xi=f(xi) ai=m(xi, ai) bi=n(xi, bi)
+
+xj=f(xj) aj=m(xj, aj) bj=n(xj, bj)
+
+xj=f(xj) aj=m(xj, aj) bj=n(xj, bj)
+
+if xi==xj break
+\end{lstlisting}
+使用Eculid算法解方程
+$$
+(b_{i}-b_{j})\gamma\equiv (a_{j}-a_{i})\pmod{p-1}
+$$
+将方程所有解$\gamma$依次带入
+$$
+g^{\gamma}\equiv h\pmod{p}
+$$
+中验证，找到满足该式子的唯一$\gamma$，即为所求。
+\subsubsection{实验代码}
+\begin{lstlisting}
+#include<iostream>
+#include<NTL/ZZ.h>
+#include<NTL/ZZ_p.h>
+using namespace std;
+using namespace NTL;
+ZZ Pollard_rho(ZZ p, ZZ g, ZZ h)
+{
+	ZZ ai, aj, bi, bj = ZZ(0);
+	ZZ xi = ZZ(1); ZZ xj = ZZ(1);
+	while (true)
+	{
+	switch (xi % 3)
+	{
+case 0: xi = xi * g % p; ai = (ai + 1) % (p - 1); 
+break;
+case 1: xi = xi * h % p; bi = (bi + 1) % (p - 1); 
+break;
+case 2: xi = xi * xi % p; ai = ai * 2 % (p - 1);  bi = bi * 2 % (p - 1); 
+break;
+	}
+	switch (xj % 3)
+	{
+case 0: xj = xj * g % p; aj = (aj + 1) % (p - 1); 
+break;
+case 1: xj = xj * h % p; bj = (bj + 1) % (p - 1); 
+break;
+case 2: xj = xj * xj % p; aj = aj * 2 % (p - 1);  bj = bj * 2 % (p - 1); 
+break;
+	}
+	switch (xj % 3)
+	{
+case 0: xj = xj * g % p; aj = (aj + 1) % (p - 1); 
+break;
+case 1: xj = xj * h % p; bj = (bj + 1) % (p - 1); 
+break;
+case 2: xj = xj * xj % p; aj = aj * 2 % (p - 1);  bj = bj * 2 % (p - 1); 
+break;
+	}
+		if (xi == xj)break;
+	}
+	ZZ a = (bi - bj) % (p - 1);
+	if (a == 0)
+	{
+		cout << "failed" << endl;
+		return ZZ(0);
+	}
+	ZZ b = (aj - ai) % (p - 1);
+	ZZ gcd = GCD(a, p - 1);
+	ZZ r= b / gcd * InvMod(a / gcd, (p - 1) / gcd) % ((p - 1) /gcd);
+	ZZ_p g_mod, h_mod;
+	conv(g_mod, g);
+	conv(h_mod, h);
+	for (int i = 0; i < gcd; i++)
+	{
+        if (power(g_mod, r + i * (p - 1) / gcd) == h_mod)
+        return (r + i * (p - 1) / gcd);
+	}
+}
+int main()
+{
+	ZZ p, g, h;
+	cout << "请依次输入p g h" << endl;
+	cin >> p >> g >> h;
+	ZZ_p::init(p);
+	cout << Pollard_rho(p, g, h) << endl;
+	return 0;
+}
+\end{lstlisting}
+\newpage
+\subsubsection{实验结果(NTL)}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\linewidth]{52b1862907b1fdc549cea8447be2c475.jpg}
+    \caption{实验结果}
+    \label{fig:enter-label}
+\end{figure}
+\newpage
+
+
+\section{实验反思}
+
+在实验给定的5个测试用例中，只有周家熠负责部分的方法经过编程以及代码优化成功完成5个测试用例，潘子豪以及王煜涵负责的部分方法只可完成其中的2到3个测试用例，第4以及第5个测试用例因为方法缺陷以及代码优化不良好导致运行时间过长导致计算机报错。
+
+\end{document}
